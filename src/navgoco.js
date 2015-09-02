@@ -34,17 +34,20 @@
 	 * @param {Integer} idx
 	 * @returns {Object} Plugin Instance
 	 */
-	var Plugin = function(el, options, idx) {
-		this.el = el;
-		this.$el = $(el);
-		this.options = options;
-		this.uuid = this.$el.attr('id') ? this.$el.attr('id') : idx;
-		this.state = {};
-		this.init();
+	var Plugin = function(el, options) {
+		this.makeid = function() {
+		    var text = "";
+		    var possible = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+
+		    for( var i=0; i < 5; i++ )
+		        text += possible.charAt(Math.floor(Math.random() * possible.length));
+
+		    return text;
+		};
 
 		this.defaults = {
-			caretHtml: '',
-			accordion: false,
+			caretHtml: false,
+			accordion: true,
 			openClass: 'open',
 			slide: {
 				duration: 400,
@@ -55,6 +58,14 @@
 			onToggleBefore: $.noop,
 			onToggleAfter: $.noop
 		};
+
+		this.el = el;
+		this.$el = $(el);
+		this.options = $.extend({}, this.defaults, options || {});
+		this.uuid = this.$el.attr('id') ? this.$el.attr('id') : this.makeid();
+		this.state = {};
+		this.init();
+		this.create();
 
 		return this;
 	};
@@ -247,12 +258,13 @@
 			this.$el.find("li:has(ul) > a > span").unbind('click');
 		},
 
-		create: function(element, options) {
+		create: function() {
+			var element = self.$el;
+			var options = self.options;
+
 			if (typeof options === 'string' && options.charAt(0) !== '_' && options !== 'init') {
 				var callback = true,
 					args = Array.prototype.slice.call(arguments, 1);
-			} else {
-				options = $.extend({}, this.defaults, options || {});
 			}
 
 			return $(element).each(function(idx) {
