@@ -1,13 +1,29 @@
-/*
- * jQuery Navgoco Menus Plugin v0.2.1 (2014-04-11)
- * https://github.com/tefra/navgoco
- *
- * Copyright (c) 2014 Chris T (@tefra)
- * BSD - https://github.com/tefra/navgoco/blob/master/LICENSE-BSD
- */
-(function($) {
+'use strict';
 
-	"use strict";
+// Uses CommonJS, AMD or browser globals to create a jQuery plugin.
+
+// Similar to jqueryPlugin.js but also tries to
+// work in a CommonJS environment.
+
+(function (factory) {
+    if (typeof define === 'function' && define.amd) {
+        // AMD. Register as an anonymous module.
+        define(['jquery'], factory);
+    } else if (typeof module === 'object' && module.exports) {
+        // Node/CommonJS
+        module.exports = factory(require('jquery'));
+    } else {
+        // Browser globals
+        factory(jQuery);
+    }
+}(function ($) {
+	/*
+ 	 * jQuery Navgoco Menus Plugin v0.2.1 (2014-04-11)
+ 	 * https://github.com/tefra/navgoco
+ 	 *
+ 	 * Copyright (c) 2014 Chris T (@tefra)
+ 	 * BSD - https://github.com/tefra/navgoco/blob/master/LICENSE-BSD
+ 	 */
 
 	/**
 	 * Plugin Constructor. Every menu must have a unique id which will either
@@ -25,6 +41,21 @@
 		this.uuid = this.$el.attr('id') ? this.$el.attr('id') : idx;
 		this.state = {};
 		this.init();
+
+		this.defaults = {
+			caretHtml: '',
+			accordion: false,
+			openClass: 'open',
+			slide: {
+				duration: 400,
+				easing: 'swing'
+			},
+			onClickBefore: $.noop,
+			onClickAfter: $.noop,
+			onToggleBefore: $.noop,
+			onToggleAfter: $.noop
+		};
+
 		return this;
 	};
 
@@ -41,11 +72,10 @@
 		 */
 		init: function() {
 			var self = this;
-			self._load();
 			self.$el.find('ul').each(function(idx) {
 				var sub = $(this);
 				sub.attr('data-index', idx);
-				if (self.options.save && self.state.hasOwnProperty(idx)) {
+				if (self.state.hasOwnProperty(idx)) {
 					sub.parent().addClass(self.options.openClass);
 					sub.show();
 				} else if (sub.parent().hasClass(self.options.openClass)) {
@@ -83,7 +113,6 @@
 				if (!isLink || sub && isAnchor) {
 					event.preventDefault();
 					self._toggle(sub, sub.is(":hidden"));
-					self._save();
 				} else if (self.options.accordion) {
 					var allowed = self.state = self._parents($(this));
 					self.$el.find('ul').filter(':visible').each(function() {
@@ -94,7 +123,6 @@
 							self._toggle(sub, false);
 						}
 					});
-					self._save();
 				}
 				self.options.onClickAfter.call(this, event, sub);
 			});
@@ -166,35 +194,6 @@
 			return result;
 		},
 		/**
-		 * If `save` option is on the internal object that keeps track of the sub-menus states is
-		 * saved with a cookie. For size reasons only the open sub-menus indexes are stored.		 *
-		 */
-		_save: function() {
-			if (this.options.save) {
-				var save = {};
-				for (var key in this.state) {
-					if (this.state[key] === 1) {
-						save[key] = 1;
-					}
-				}
-				cookie[this.uuid] = this.state = save;
-				$.cookie(this.options.cookie.name, JSON.stringify(cookie), this.options.cookie);
-			}
-		},
-		/**
-		 * If `save` option is on it reads the cookie data. The cookie contains data for all
-		 * navgoco menus so the read happens only once and stored in the global `cookie` var.
-		 */
-		_load: function() {
-			if (this.options.save) {
-				if (cookie === null) {
-					var data = $.cookie(this.options.cookie.name);
-					cookie = (data) ? JSON.parse(data) : {};
-				}
-				this.state = cookie.hasOwnProperty(this.uuid) ? cookie[this.uuid] : {};
-			}
-		},
-		/**
 		 * Public method toggle to manually show|hide sub-menus. If no indexes are provided all
 		 * items will be toggled. You can pass sub-menus indexes as regular params. eg:
 		 * navgoco('toggle', true, 1, 2, 3, 4, 5);
@@ -238,7 +237,6 @@
 					self._toggle(list[idx], open);
 				}
 			}
-			self._save();
 		},
 		/**
 		 * Removes instance from JQuery data cache and unbinds events.
@@ -247,68 +245,30 @@
 			$.removeData(this.$el);
 			this.$el.find("li:has(ul) > a").unbind('click');
 			this.$el.find("li:has(ul) > a > span").unbind('click');
+		},
+
+		create: function(element, options) {
+			if (typeof options === 'string' && options.charAt(0) !== '_' && options !== 'init') {
+				var callback = true,
+					args = Array.prototype.slice.call(arguments, 1);
+			} else {
+				options = $.extend({}, this.defaults, options || {});
+			}
+
+			return $(element).each(function(idx) {
+				var $this = $(this),
+					obj = $this.data('navgoco');
+
+				if (!obj) {
+					obj = new Plugin(this, callback ? this.defaults : options, idx);
+					$this.data('navgoco', obj);
+				}
+				if (callback) {
+					obj[options].apply(obj, args);
+				}
+			});
 		}
 	};
 
-	/**
-	 * A JQuery plugin wrapper for navgoco. It prevents from multiple instances and also handles
-	 * public methods calls. If we attempt to call a public method on an element that doesn't have
-	 * a navgoco instance, one will be created for it with the default options.
-	 *
-	 * @param {Object|String} options
-	 */
-	$.fn.navgoco = function(options) {
-		if (typeof options === 'string' && options.charAt(0) !== '_' && options !== 'init') {
-			var callback = true,
-				args = Array.prototype.slice.call(arguments, 1);
-		} else {
-			options = $.extend({}, $.fn.navgoco.defaults, options || {});
-			if (!$.cookie) {
-				options.save = false;
-			}
-		}
-		return this.each(function(idx) {
-			var $this = $(this),
-				obj = $this.data('navgoco');
-
-			if (!obj) {
-				obj = new Plugin(this, callback ? $.fn.navgoco.defaults : options, idx);
-				$this.data('navgoco', obj);
-			}
-			if (callback) {
-				obj[options].apply(obj, args);
-			}
-		});
-	};
-	/**
-	 * Global var holding all navgoco menus open states
-	 *
-	 * @type {Object}
-	 */
-	var cookie = null;
-
-	/**
-	 * Default navgoco options
-	 *
-	 * @type {Object}
-	 */
-	$.fn.navgoco.defaults = {
-		caretHtml: '',
-		accordion: false,
-		openClass: 'open',
-		save: true,
-		cookie: {
-			name: 'navgoco',
-			expires: false,
-			path: '/'
-		},
-		slide: {
-			duration: 400,
-			easing: 'swing'
-		},
-		onClickBefore: $.noop,
-		onClickAfter: $.noop,
-		onToggleBefore: $.noop,
-		onToggleAfter: $.noop
-	};
-})(jQuery);
+	return Plugin;
+}));
